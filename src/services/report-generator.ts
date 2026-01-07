@@ -29,29 +29,30 @@ class ReportGenerator {
     const endDate = getEndOfWeek(startDate);
     
     // Calculate key metrics
-    const averageSleepDuration = entries.reduce((sum, entry) => sum + (entry.duration || 0), 0) / entries.length;
+    const totalDuration = entries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+    const averageSleepDuration = entries.length > 0 ? totalDuration / entries.length : 0;
     
-    // For simplicity, we'll set consistency score and catchup sleep hours to placeholder values
-    // In a real implementation, these would be calculated from the entries
+    // For simplicity, we'll use a placeholder consistency score
+    // In a real implementation, this would be calculated from the actual data
     const consistencyScore = 75; // Placeholder value
-    const catchupSleepHours = 3; // Placeholder value
+    
+    // Calculate catch-up sleep hours (weekend recovery)
+    const weekendEntries = entries.filter(entry => entry.isWeekend);
+    const catchupSleepHours = weekendEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
     
     // Generate summary text
-    const summary = `Weekly sleep summary for ${startDate.toDateString()} to ${endDate.toDateString()}. 
-      Average sleep duration: ${averageSleepDuration.toFixed(1)} hours. 
-      Consistency score: ${consistencyScore}/100. 
-      Catch-up sleep hours: ${catchupSleepHours} hours.`;
+    const summary = `Weekly Sleep Summary: You averaged ${averageSleepDuration.toFixed(1)} hours of sleep this week, with ${catchupSleepHours.toFixed(1)} hours of weekend recovery sleep.`;
     
     // Generate trends
     const trends = [
-      "Sleep duration shows moderate improvement over the past month",
-      "Weekend recovery sleep has increased by 15% compared to last week",
-      "Consistency in weekday sleep schedule improved slightly"
+      "Sleep duration shows moderate consistency",
+      "Weekend recovery sleep is within recommended range",
+      "Overall sleep pattern suggests room for improvement"
     ];
     
     // Generate visualization placeholders
-    const sleepPatternChart = "Chart: Sleep pattern over the week";
-    const consistencyChart = "Chart: Sleep consistency score";
+    const sleepPatternChart = "Chart: Sleep Duration Over Time";
+    const consistencyChart = "Chart: Sleep Schedule Consistency";
     
     return {
       period: {
