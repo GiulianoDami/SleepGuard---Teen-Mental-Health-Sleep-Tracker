@@ -27,24 +27,16 @@ export function getEndOfWeek(date: Date): Date {
  * @param timeString - Time in HH:mm or HH:mm AM/PM format
  */
 export function formatTimeTo24Hour(timeString: string): string {
-  const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
-  const match = timeString.match(timeRegex);
+  const [time, period] = timeString.split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
   
-  if (!match) {
-    throw new Error('Invalid time format. Expected HH:mm AM/PM');
-  }
-  
-  let hours = parseInt(match[1], 10);
-  const minutes = match[2];
-  const ampm = match[3].toUpperCase();
-  
-  if (ampm === 'AM' && hours === 12) {
-    hours = 0;
-  } else if (ampm === 'PM' && hours !== 12) {
+  if (period === 'PM' && hours !== 12) {
     hours += 12;
+  } else if (period === 'AM' && hours === 12) {
+    hours = 0;
   }
   
-  return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -53,18 +45,22 @@ export function formatTimeTo24Hour(timeString: string): string {
  * @param endTime - End time in format HH:mm
  */
 export function calculateDuration(startTime: string, endTime: string): number {
-  const [startHours, startMinutes] = startTime.split(':').map(Number);
-  const [endHours, endMinutes] = endTime.split(':').map(Number);
+  const start24 = formatTimeTo24Hour(startTime);
+  const end24 = formatTimeTo24Hour(endTime);
   
-  let startTotalMinutes = startHours * 60 + startMinutes;
-  let endTotalMinutes = endHours * 60 + endMinutes;
+  const [startHours, startMinutes] = start24.split(':').map(Number);
+  const [endHours, endMinutes] = end24.split(':').map(Number);
   
-  // Handle overnight sleep (end time is next day)
-  if (endTotalMinutes < startTotalMinutes) {
-    endTotalMinutes += 24 * 60; // Add 24 hours in minutes
+  const startTotalMinutes = startHours * 60 + startMinutes;
+  const endTotalMinutes = endHours * 60 + endMinutes;
+  
+  let durationMinutes = endTotalMinutes - startTotalMinutes;
+  
+  // Handle overnight sleep
+  if (durationMinutes < 0) {
+    durationMinutes += 24 * 60;
   }
   
-  const durationMinutes = endTotalMinutes - startTotalMinutes;
   return durationMinutes / 60;
 }
 
@@ -74,5 +70,5 @@ export function calculateDuration(startTime: string, endTime: string): number {
  */
 export function isWeekend(date: Date): boolean {
   const day = date.getDay();
-  return day === 0 || day === 6; // Sunday or Saturday
+  return day === 0 || day === 6;
 }
