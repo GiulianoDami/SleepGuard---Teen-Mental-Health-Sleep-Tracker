@@ -44,7 +44,8 @@ class SleepTracker {
   logSleep(sleepData: Omit<SleepEntry, 'id'>): string {
     const newEntry: SleepEntry = {
       ...sleepData,
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      id: Math.random().toString(36).substr(2, 9),
+      duration: this.calculateDuration(sleepData.startTime, sleepData.endTime)
     };
 
     this.sleepEntries.push(newEntry);
@@ -81,7 +82,7 @@ class SleepTracker {
     const analysis: SleepAnalysis = {
       metrics: SleepAnalyzer.analyzeSleepConsistency(allEntries),
       optimalCatchupHours: SleepAnalyzer.calculateOptimalCatchup(
-        allEntries,
+        allEntries, 
         this.config.targetSleepDuration || 8
       ),
       consistencyScore: 0,
@@ -92,15 +93,30 @@ class SleepTracker {
   }
 
   generateWeeklyReport(startDate?: Date): WeeklyReport {
-    const startOfWeek = startDate ? getStartOfWeek(startDate) : getStartOfWeek(new Date());
-    const endOfWeek = getEndOfWeek(startOfWeek);
+    const start = startDate || new Date();
+    const weekStart = getStartOfWeek(start);
+    const weekEnd = getEndOfWeek(start);
     
-    const weeklyEntries = this.getSleepEntries(startOfWeek, endOfWeek);
+    const weeklyEntries = this.getSleepEntries(weekStart, weekEnd);
     
-    return ReportGenerator.generateWeeklyReport(weeklyEntries, startOfWeek);
+    return ReportGenerator.generateWeeklyReport(weeklyEntries, weekStart);
   }
 
   updateConfig(newConfig: Partial<SleepTrackerConfig>): void {
     this.config = { ...this.config, ...newConfig };
+  }
+
+  private calculateDuration(startTime: string, endTime: string): number {
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    let startTotalMinutes = startHours * 60 + startMinutes;
+    let endTotalMinutes = endHours * 60 + endMinutes;
+    
+    if (endTotalMinutes < startTotalMinutes) {
+      endTotalMinutes += 24 * 60;
+    }
+    
+    return (endTotalMinutes - startTotalMinutes) / 60;
   }
 }
