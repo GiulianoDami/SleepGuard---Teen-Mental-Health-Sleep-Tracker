@@ -34,16 +34,17 @@ export class SleepAnalyzer {
     }
 
     // Calculate weekend recovery sleep
-    const weekendRecovery = weekendEntries.reduce((total, entry) => {
-      return total + (entry.duration || 0);
-    }, 0);
+    const weekendRecovery = weekendEntries.reduce((total, entry) => 
+      total + (entry.duration || 0), 0
+    );
 
     // Calculate sleep debt (assuming 8 hours is ideal)
     const idealSleepDuration = 8;
-    const sleepDebt = entries.reduce((total, entry) => {
-      const duration = entry.duration || 0;
-      return total + Math.max(0, idealSleepDuration - duration);
-    }, 0);
+    const totalSleep = entries.reduce((total, entry) => 
+      total + (entry.duration || 0), 0
+    );
+    const idealSleep = entries.length * idealSleepDuration;
+    const sleepDebt = Math.max(0, idealSleep - totalSleep);
 
     // Calculate sleep variability (standard deviation of sleep times)
     let sleepVariability = 0;
@@ -74,11 +75,14 @@ export class SleepAnalyzer {
       return 0;
     }
 
-    const totalWeekdaySleep = weekdayEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+    const totalWeekdaySleep = weekdayEntries.reduce((total, entry) => 
+      total + (entry.duration || 0), 0
+    );
+    
     const idealWeekdaySleep = weekdayEntries.length * targetSleepDuration;
     const sleepDeficit = Math.max(0, idealWeekdaySleep - totalWeekdaySleep);
     
-    // Cap at maximum allowed catch-up hours (default 4)
+    // Cap at reasonable limit (e.g., 4 hours)
     return Math.min(sleepDeficit, 4);
   }
 
@@ -92,21 +96,37 @@ export class SleepAnalyzer {
     }
 
     const consistencyMetrics = this.analyzeSleepConsistency(entries);
-    const { weekdayConsistency, sleepVariability, sleepDebt } = consistencyMetrics;
-
-    // Base score from consistency (0-100)
-    let baseScore = weekdayConsistency;
-
-    // Adjust for sleep variability (lower variability = better)
-    const variabilityPenalty = Math.min(sleepVariability * 5, 30); // Max penalty of 30 points
-    baseScore = Math.max(0, baseScore - variabilityPenalty);
-
-    // Adjust for sleep debt (more debt = lower score)
-    const debtPenalty = Math.min(sleepDebt * 5, 40); // Max penalty of 40 points
-    baseScore = Math.max(0, baseScore - debtPenalty);
-
-    // Normalize to 0-100 scale
-    return Math.round(Math.min(100, Math.max(0, baseScore)));
+    const avgDuration = entries.reduce((sum, entry) => sum + (entry.duration || 0), 0) / entries.length;
+    
+    // Base score from consistency
+    let baseScore = consistencyMetrics.weekdayConsistency;
+    
+    // Adjust for duration (ideal is 7-9 hours)
+    let durationScore = 0;
+    if (avgDuration >= 7 && avgDuration <= 9) {
+      durationScore = 100;
+    } else if (avgDuration >= 6 && avgDuration <= 10) {
+      durationScore = 80;
+    } else if (avgDuration >= 5 && avgDuration <= 11) {
+      durationScore = 60;
+    } else {
+      durationScore = 40;
+    }
+    
+    // Adjust for sleep debt
+    let debtScore = 100;
+    if (consistencyMetrics.sleepDebt > 4) {
+      debtScore = 40;
+    } else if (consistencyMetrics.sleepDebt > 2) {
+      debtScore = 60;
+    } else if (consistencyMetrics.sleepDebt > 0) {
+      debtScore = 80;
+    }
+    
+    // Weighted average
+    const finalScore = (baseScore * 0.4 + durationScore * 0.3 + debtScore * 0.3);
+    
+    return Math.min(100, Math.max(0, finalScore));
   }
 
   /**
@@ -119,11 +139,11 @@ export class SleepAnalyzer {
     const improvementAreas: string[] = [];
     const successFactors: string[] = [];
 
-    // Check consistency score
-    if (analysis.consistencyScore < 60) {
+    // Consistency recommendation
+    if (analysis.metrics.weekdayConsistency < 70) {
       recommendations.push({
         category: 'sleep-schedule',
-        description: 'Your sleep schedule shows low consistency. Try to maintain regular sleep and wake times.',
+        description: 'Try to maintain consistent sleep and wake times throughout the week.',
         priority: 'high',
         impact: 'high'
       });
@@ -132,65 +152,78 @@ export class SleepAnalyzer {
       successFactors.push('Good sleep schedule consistency');
     }
 
-    // Check sleep debt
-    if (analysis.metrics.sleepDebt > 2) {
+    // Catch-up sleep recommendation
+    if (analysis.metrics.weekendRecovery < 4) {
       recommendations.push({
         category: 'catchup-sleep',
-        description: 'You have accumulated significant sleep debt. Consider getting more sleep on weekends.',
+        description: 'Consider getting more recovery sleep on weekends to offset weekday sleep debt.',
         priority: 'medium',
         impact: 'medium'
       });
-      improvementAreas.push('Sleep debt accumulation');
-    } else if (analysis.metrics.sleepDebt > 0) {
-      recommendations.push({
-        category: 'catchup-sleep',
-        description: 'You have some sleep debt. Aim to recover a bit on weekends.',
-        priority: 'low',
-        impact: 'medium'
-      });
-    } else {
-      successFactors.push('Minimal sleep debt');
-    }
-
-    // Check weekend recovery
-    if (analysis.metrics.weekendRecovery < 2) {
-      recommendations.push({
-        category: 'catchup-sleep',
-        description: 'Consider increasing your weekend recovery sleep to help offset weekday sleep loss.',
-        priority: 'medium',
-        impact: 'medium'
-      });
+      improvementAreas.push('Insufficient weekend recovery sleep');
     } else {
       successFactors.push('Adequate weekend recovery sleep');
     }
 
-    // Check sleep variability
-    if (analysis.metrics.sleepVariability > 1.5) {
+    // Sleep debt recommendation
+    if (analysis.metrics.sleepDebt > 2) {
       recommendations.push({
         category: 'consistency',
-        description: 'Your sleep times vary significantly. Try to keep more consistent sleep/wake times.',
+        description: 'Address accumulated sleep debt by improving weekday sleep habits.',
+        priority: 'high',
+        impact: 'high'
+      });
+      improvementAreas.push('Accumulated sleep debt');
+    } else {
+      successFactors.push('Minimal sleep debt');
+    }
+
+    // Overall recommendation
+    if (analysis.recommendationLevel === 'high') {
+      recommendations.push({
+        category: 'overall',
+        description: 'Significant improvements needed in sleep patterns for optimal mental health.',
+        priority: 'high',
+        impact: 'high'
+      });
+    } else if (analysis.recommendationLevel === 'medium') {
+      recommendations.push({
+        category: 'overall',
+        description: 'Some improvements would benefit your mental health and sleep quality.',
         priority: 'medium',
         impact: 'medium'
       });
-      improvementAreas.push('Sleep time variability');
     } else {
-      successFactors.push('Consistent sleep timing');
+      recommendations.push({
+        category: 'overall',
+        description: 'Your sleep patterns are generally healthy and supportive of good mental health.',
+        priority: 'low',
+        impact: 'low'
+      });
+      successFactors.push('Overall healthy sleep patterns');
     }
 
-    // Risk level based on consistency score and sleep debt
+    // Risk level determination
     let riskLevel: 'low' | 'moderate' | 'high' = 'low';
-    if (analysis.consistencyScore < 50 || analysis.metrics.sleepDebt > 4) {
+    if (analysis.metrics.sleepDebt > 4 || analysis.metrics.weekdayConsistency < 50) {
       riskLevel = 'high';
-    } else if (analysis.consistencyScore < 70 || analysis.metrics.sleepDebt > 2) {
+    } else if (analysis.metrics.sleepDebt > 2 || analysis.metrics.weekdayConsistency < 70) {
       riskLevel = 'moderate';
     }
 
     return {
       recommendations,
-      sleepQualityScore: analysis.consistencyScore,
+      sleepQualityScore: this.calculateSleepQualityScore(entries),
       riskLevel,
       improvementAreas,
       successFactors
     };
   }
+}
+
+interface Recommendation {
+  category: 'sleep-schedule' | 'catchup-sleep' | 'consistency' | 'overall';
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
 }
